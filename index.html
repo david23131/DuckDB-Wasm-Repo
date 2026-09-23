@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DuckDB OPFS lab</title></head>
+<body>
+<h1>DuckDB + OPFS lab</h1>
+<p>Each page load inserts one transaction and checkpoints it. Reload to test persistence.</p>
+<p id="status" role="status">Opening database…</p>
+<button id="reload" disabled>Reload page</button>
+<button id="orders" disabled>Load orders & cache monthly totals</button>
+<button id="local-orders" disabled>Query saved orders (local only)</button>
+<button id="parquet" disabled>Download transactions.parquet</button>
+<button id="export" disabled>Download analytics.duckdb</button>
+<button id="close" disabled>Checkpoint & close</button>
+<h2>Results</h2><pre id="output"></pre>
+<script type="module" src="/src/main.js"></script>
+</body></html>

@@ -1,0 +1,9 @@
+{
+  "name": "duckdb-opfs-lab",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1 --port 5173 --strictPort", "build": "vite build" },
+  "dependencies": { "@duckdb/duckdb-wasm": "1.32.0" },
+  "devDependencies": { "vite": "^6.0.0" }
+}
