@@ -1,6 +1,7 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import './style.css';
 import { setupNFCorpus } from './nfcorpus.js';
+import { deleteDemoFiles } from './reset.js';
 
 const status = document.querySelector('#status');
 const output = document.querySelector('#output');
@@ -25,8 +26,8 @@ async function download(path, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function run(action) {
-  if (busy || closed) return;
+async function run(action, allowClosed = false) {
+  if (busy || (closed && !allowClosed)) return;
   busy = true;
   buttons.forEach(button => { button.disabled = true; });
   try {
@@ -38,6 +39,7 @@ async function run(action) {
     busy = false;
     buttons.forEach(button => { button.disabled = closed; });
     document.querySelector('#reload').disabled = false;
+    document.querySelector('#reset').disabled = false;
   }
 }
 
@@ -96,6 +98,25 @@ document.querySelector('#close').onclick = () => run(async () => {
   closed = true;
   status.textContent = 'Database closed. Reload to reopen it.';
 });
+
+document.querySelector('#reset').onclick = () => {
+  if (busy) return;
+  if (!window.confirm('Delete all tables and indexes in this demo, plus its cached/exported Parquet files in browser storage? Downloaded copies are unaffected. Close other demo tabs first.')) return;
+  return run(async () => {
+    status.textContent = 'Closing the database and deleting saved demo data…';
+    if (!closed) {
+      await conn.query('CHECKPOINT');
+      await conn.close();
+      await db.terminate();
+      closed = true;
+    }
+    output.textContent = '';
+    document.querySelector('#fts-results').replaceChildren();
+    document.querySelector('#fts-status').textContent = 'Database closed for reset.';
+    await deleteDemoFiles(await navigator.storage.getDirectory());
+    location.reload();
+  }, true);
+};
 
 async function main() {
   if (!window.isSecureContext || !navigator.storage?.getDirectory) {
