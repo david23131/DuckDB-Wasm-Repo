@@ -1,6 +1,6 @@
 # DuckDB-Wasm OPFS Lab
 
-A small browser-based lab demonstrating persistent SQL databases with DuckDB-Wasm and the Origin Private File System (OPFS). Import a remote dataset, query saved tables after a page reload, and export data for use with native DuckDB.
+A small browser-based lab demonstrating persistent SQL databases and NFCorpus full-text search with DuckDB-Wasm and the Origin Private File System (OPFS). Build an FTS index over 3,633 documents, search with BM25, query saved tables after a page reload, and export data for use with native DuckDB.
 
 Based on DuckDB’s article [Persistent Databases in the Browser with DuckDB-Wasm and OPFS](https://duckdb.org/2026/09/18/opfs-wasm) (September 18, 2026). This repository adapts the article’s examples into an interactive page and adds a separate local-query experiment.
 
@@ -102,7 +102,9 @@ Both downloads are snapshots. Later browser changes do not update previously dow
 ```text
 index.html        Page layout and experiment buttons
 src/main.js       DuckDB initialization, SQL queries, and exports
+src/nfcorpus.js   NFCorpus import, FTS indexing, and search interface
 src/style.css     Page styling
+scripts/prepare-nfcorpus.mjs Dataset validation and preparation
 package.json      Dependencies and development commands
 package-lock.json Locked dependency versions
 ```
@@ -116,3 +118,53 @@ npm run build
 ```
 
 The production bundle is generated in `dist/`. A successful build verifies bundling; persistence and exports require the browser experiments above. `node_modules/` and `dist/` are excluded from Git, and browser OPFS data is not part of the repository.
+
+## NFCorpus full-text search in the browser
+
+The NFCorpus section demonstrates the [DuckDB FTS extension](https://duckdb.org/docs/current/core_extensions/full_text_search) on 3,633 documents. Import, index construction, and BM25 search execute in DuckDB-Wasm; there is no search backend.
+
+Prepare the dataset from an existing BEIR NFCorpus `corpus.jsonl`:
+
+```sh
+npm run prepare:nfcorpus -- /path/to/nfcorpus/corpus.jsonl
+npm run dev
+```
+
+The preparation script validates document IDs and copies title/text fields to `public/data/nfcorpus.jsonl`. It does not build a search index. Generated dataset files are excluded from Git; each checkout needs this preparation step. The source dataset is described in the [QuackIR NFCorpus guide](https://github.com/castorini/quackir/blob/main/docs/experiments-nfcorpus.md).
+
+1. Open the lab and wait for Ready.
+2. Click **Load NFCorpus & build FTS index**. The application installs/loads `fts`, imports the local JSONL file if the table is missing, indexes combined title and text using the extension defaults, and checkpoints.
+3. Search for `breast cancer`. Results show document IDs, titles, BM25 scores, excerpts, and expandable full text. Higher scores appear first, with document ID breaking ties.
+4. Try a different query or an unlikely term to exercise the no-match case.
+5. Reload and search again without rebuilding. The table and index are stored in the existing OPFS database; the FTS extension is loaded again for the new session.
+
+The module is in `src/nfcorpus.js`. Query text is passed as a bound parameter. Displayed document content uses text nodes. The index button explicitly rebuilds an existing index; it does not replace an existing corpus table. FTS indexes do not automatically track table edits.
+
+### Core FTS operations
+
+After importing documents into `nfcorpus`, with `contents` formed by concatenating title and text, the browser executes:
+
+```sql
+INSTALL fts;
+LOAD fts;
+PRAGMA create_fts_index('nfcorpus', 'id', 'contents', overwrite = 1);
+```
+
+`create_fts_index` is the key setup step: it indexes `contents`, associates entries with document `id`, and creates the retrieval macro used by the search query:
+
+```sql
+SELECT id, title, text,
+       fts_main_nfcorpus.match_bm25(id, ?) AS score
+FROM nfcorpus
+WHERE score IS NOT NULL
+ORDER BY score DESC, id
+LIMIT 10;
+```
+
+The application binds the user's search text to `?` through a prepared statement. A `NULL` score indicates no match; matching documents are ranked by descending BM25 score.
+
+### Verified browser behavior
+
+In the Chrome walkthrough, all 3,633 documents were indexed successfully. Searching for `breast cancer` returned ten results, led by `MED-14` (3.5702) and `MED-3551` (3.5589), matching the first two results from the native DuckDB SQL check. The browser reported DuckDB engine version `v1.4.3`; this is distinct from the JavaScript package version. Displayed query timings include rendering and are not standalone search benchmarks. Index reuse after reload remains a separate verification step in the walkthrough.
+
+Internet access is still needed for DuckDB runtime/extension downloads. A successful native SQL check or Vite build does not verify that the browser can download and load its matching Wasm extension. Extension errors appear in the FTS status message. Retrieval evaluation against NFCorpus relevance judgments is outside this demo.

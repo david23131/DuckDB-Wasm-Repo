@@ -5,3 +5,9 @@ button { font: inherit; padding: .5rem .8rem; margin: .3rem; cursor: pointer; }
 button:disabled { cursor: default; }
 pre { background: #fff; border: 1px solid #d5d9df; padding: 1rem; overflow: auto; }
 #status { font-weight: 600; }
+section { background: white; padding: 1.2rem; border: 1px solid #d5d9df; margin-bottom: 2rem; }
+input[type=search] { font: inherit; padding: .5rem; width: min(100%, 25rem); box-sizing: border-box; }
+label { display: block; margin-top: 1rem; }
+#fts-results li { border-top: 1px solid #d5d9df; padding: 1rem 0; }
+#fts-results h3 { margin: 0; }
+#fts-results p { overflow-wrap: anywhere; }

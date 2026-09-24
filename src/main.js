@@ -1,5 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import './style.css';
+import { setupNFCorpus } from './nfcorpus.js';
 
 const status = document.querySelector('#status');
 const output = document.querySelector('#output');
@@ -11,6 +12,7 @@ const show = (label, result) => {
 let db;
 let conn;
 let closed = false;
+let busy = false;
 
 async function download(path, name) {
   let directory = await navigator.storage.getDirectory();
@@ -24,13 +26,16 @@ async function download(path, name) {
 }
 
 async function run(action) {
+  if (busy || closed) return;
+  busy = true;
   buttons.forEach(button => { button.disabled = true; });
   try {
     await action();
   } catch (error) {
-    status.textContent = `Error: ${error.message}. Close other tabs using this database before retrying.`;
+    status.textContent = `Error: ${error.message}`;
     console.error(error);
   } finally {
+    busy = false;
     buttons.forEach(button => { button.disabled = closed; });
     document.querySelector('#reload').disabled = false;
   }
@@ -113,6 +118,7 @@ async function main() {
     opfs: { fileHandling: 'auto' },
   });
   conn = await db.connect();
+  setupNFCorpus(db, conn, run);
   await conn.query(`CREATE TABLE IF NOT EXISTS transactions (
     id BIGINT, ts TIMESTAMP, merchant VARCHAR, category VARCHAR, amount DECIMAL(10, 2)
   )`);
