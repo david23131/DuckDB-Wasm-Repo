@@ -11,7 +11,7 @@ export const INDEX_SQL = `PRAGMA create_fts_index(
   'nfcorpus', 'id', 'contents', overwrite = 1
 )`;
 
-export function setupNFCorpus(db, conn, run) {
+export function setupNFCorpus(db, conn, run, llm) {
   const status = document.querySelector('#fts-status');
   const results = document.querySelector('#fts-results');
   let loaded = false;
@@ -29,9 +29,9 @@ export function setupNFCorpus(db, conn, run) {
   `)).toArray()[0].n > 0;
 
   async function action(task) {
-    await run(async () => {
+    return run(async () => {
       results.replaceChildren();
-      try { await task(); }
+      try { return await task(); }
       catch (error) {
         status.textContent = `FTS error: ${error.message}`;
         throw error;
@@ -74,6 +74,7 @@ export function setupNFCorpus(db, conn, run) {
     event.preventDefault();
     const query = document.querySelector('#fts-query').value.trim();
     if (!query) return;
+    llm.cancel(true);
     return action(async () => {
       await loadExtension();
       const index = await conn.query(`SELECT count(*) AS n FROM information_schema.schemata
@@ -90,6 +91,8 @@ export function setupNFCorpus(db, conn, run) {
       finally { await statement.close(); }
       for (const row of rows) {
         const item = document.createElement('li');
+        item.id = `fts-result-${encodeURIComponent(String(row.id))}`;
+        item.tabIndex = -1;
         const title = document.createElement('h3');
         title.textContent = row.title;
         const metadata = document.createElement('p');
@@ -108,6 +111,10 @@ export function setupNFCorpus(db, conn, run) {
       status.textContent = rows.length
         ? `Showing the top ${rows.length} matches for “${query}” (${(performance.now() - start).toFixed(0)} ms, including rendering).`
         : `No matches for “${query}”. Try different terms; common stopwords are excluded.`;
+      return rows;
+    }).then(rows => {
+      if (rows?.length) llm.generate(query, rows);
+      else if (rows) llm.showRetrievalMessage('No retrieved documents support a grounded answer for this query.');
     });
   };
 }

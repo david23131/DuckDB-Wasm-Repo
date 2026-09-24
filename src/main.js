@@ -1,11 +1,12 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import './style.css';
 import { setupNFCorpus } from './nfcorpus.js';
+import { setupLLM } from './llm-controller.js';
 import { deleteDemoFiles } from './reset.js';
 
 const status = document.querySelector('#status');
 const output = document.querySelector('#output');
-const buttons = [...document.querySelectorAll('button')];
+const buttons = [...document.querySelectorAll('button:not([data-llm-control])')];
 const show = (label, result) => {
   output.textContent = `${label}\n${JSON.stringify(result.toArray().map(row => row.toJSON()),
     (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}`;
@@ -31,7 +32,7 @@ async function run(action, allowClosed = false) {
   busy = true;
   buttons.forEach(button => { button.disabled = true; });
   try {
-    await action();
+    return await action();
   } catch (error) {
     status.textContent = `Error: ${error.message}`;
     console.error(error);
@@ -42,6 +43,8 @@ async function run(action, allowClosed = false) {
     document.querySelector('#reset').disabled = false;
   }
 }
+
+const llm = setupLLM();
 
 document.querySelector('#reload').onclick = () => location.reload();
 document.querySelector('#orders').onclick = () => run(async () => {
@@ -111,6 +114,7 @@ document.querySelector('#reset').onclick = () => {
       closed = true;
     }
     output.textContent = '';
+    llm.cancel(true);
     document.querySelector('#fts-results').replaceChildren();
     document.querySelector('#fts-status').textContent = 'Database closed for reset.';
     await deleteDemoFiles(await navigator.storage.getDirectory());
@@ -139,7 +143,7 @@ async function main() {
     opfs: { fileHandling: 'auto' },
   });
   conn = await db.connect();
-  setupNFCorpus(db, conn, run);
+  setupNFCorpus(db, conn, run, llm);
   await conn.query(`CREATE TABLE IF NOT EXISTS transactions (
     id BIGINT, ts TIMESTAMP, merchant VARCHAR, category VARCHAR, amount DECIMAL(10, 2)
   )`);
