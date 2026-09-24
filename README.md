@@ -168,3 +168,15 @@ The application binds the user's search text to `?` through a prepared statement
 In the Chrome walkthrough, all 3,633 documents were indexed successfully. Searching for `breast cancer` returned ten results, led by `MED-14` (3.5702) and `MED-3551` (3.5589), matching the first two results from the native DuckDB SQL check. The browser reported DuckDB engine version `v1.4.3`; this is distinct from the JavaScript package version. Displayed query timings include rendering and are not standalone search benchmarks. Index reuse after reload remains a separate verification step in the walkthrough.
 
 Internet access is still needed for DuckDB runtime/extension downloads. A successful native SQL check or Vite build does not verify that the browser can download and load its matching Wasm extension. Extension errors appear in the FTS status message. Retrieval evaluation against NFCorpus relevance judgments is outside this demo.
+
+## Publish on GitHub Pages
+
+The workflow in `.github/workflows/pages.yml` builds and deploys the demo on pushes to `main`, or when triggered manually from Actions.
+
+1. In the repository's **Settings → Pages → Build and deployment**, set **Source** to **GitHub Actions**.
+2. Commit and push the workflow to `main`.
+3. Open **Actions → Deploy demo to GitHub Pages** and wait for the build and deployment to succeed. The deployment provides the public site URL.
+
+The workflow downloads the BEIR NFCorpus archive, runs the preparation script, and includes the generated dataset in the published `dist/` artifact. The dataset does not need to be committed. Vite's base path is set from GitHub Pages metadata so scripts and dataset requests resolve under the repository URL.
+
+Each visitor builds their own FTS index in their browser. Storage on the published origin is separate from localhost, so the first visit requires clicking **Load NFCorpus & build FTS index**. The workflow depends on availability of the dataset download; the browser also requires the DuckDB runtime and extension CDNs.
