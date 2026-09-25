@@ -22,11 +22,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Download and prepare NFCorpus
-        run: |
-          curl --fail --location --retry 3 https://public.ukp.informatik.tu-darmstadt.de/thakur/BEIR/datasets/nfcorpus.zip --output "$RUNNER_TEMP/nfcorpus.zip"
-          unzip -q "$RUNNER_TEMP/nfcorpus.zip" -d "$RUNNER_TEMP/nfcorpus-data"
-          npm run prepare:nfcorpus -- "$RUNNER_TEMP/nfcorpus-data/nfcorpus/corpus.jsonl"
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5

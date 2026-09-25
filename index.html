@@ -1,72 +1,25 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DuckDB OPFS lab</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MS MARCO Search</title></head>
 <body>
-<h1>DuckDB + OPFS lab</h1>
-<p>Each page load inserts one transaction and checkpoints it. Reload to test persistence.</p>
-<p id="status" role="status">Opening database…</p>
-<section aria-labelledby="fts-heading">
-<h2 id="fts-heading">NFCorpus full-text search</h2>
-<p>Search 3,633 documents with DuckDB BM25. Import and indexing run in your browser.</p>
-<button id="fts-index" disabled>Load NFCorpus & build FTS index</button>
-<div id="llm-controls">
-<button id="llm-load" type="button" data-llm-control disabled>Load local LLM (~1.84 GB)</button>
-<button id="llm-stop" type="button" data-llm-control disabled>Stop generation</button>
-<progress id="llm-progress" max="100" hidden aria-label="Model download progress"></progress>
-<p id="llm-status" role="status">Checking WebGPU support…</p>
-</div>
-<form id="fts-form">
-<label for="fts-query">Search title and document text</label>
-<input id="fts-query" type="search" placeholder="Search" required maxlength="500">
-<button id="fts-search" disabled>Search NFCorpus</button>
-</form>
-<p id="fts-status" role="status">Build the index once, then search. Saved indexes can be reused after reload.</p>
-<article id="llm-answer-panel" aria-labelledby="llm-answer-heading">
-<h3 id="llm-answer-heading">Grounded answer</h3>
-<p id="llm-answer" aria-live="polite">BM25 search works without the model. Load the local LLM to add cited answers.</p>
-</article>
-<ol id="fts-results"></ol>
+<main>
+<h1>MS MARCO Search</h1>
+<p>Search 8.8 million passages in your browser.</p>
+<section aria-labelledby="setup-heading">
+<h2 id="setup-heading">Open the search index</h2>
+<p>First visit? Download the index once (3.35 GB). It stays in this browser’s storage. On later visits, reopen the saved index.</p>
+<button id="marco-fetch" type="button" disabled>Download & open index (3.35 GB)</button>
+<button id="marco-reopen" type="button" disabled>Reopen saved index</button>
+<button id="marco-cancel-download" type="button" disabled hidden>Cancel download</button>
+<progress id="marco-progress" max="100" value="0" hidden aria-label="Index download progress"></progress>
 </section>
-<section aria-labelledby="marco-heading">
-<h2 id="marco-heading">MS MARCO scaling experiment</h2>
-<p>Select a local passage collection.tsv. The file is read in batches in your browser and is not uploaded. Start at 10,000 passages, then increase the size.</p>
-<label for="marco-file">MS MARCO passage collection</label>
-<input id="marco-file" type="file" accept=".tsv">
-<label for="marco-size">First N passages (deterministic prefix, not a random sample)</label>
-<select id="marco-size">
-<option value="10000">10,000</option><option value="100000">100,000</option>
-<option value="1000000">1,000,000</option><option value="all">Full corpus (experimental)</option>
-</select>
-<button id="marco-import" disabled>Import MS MARCO & build index</button>
 <form id="marco-form">
-<h3>Use an index built outside the browser</h3>
-<button id="marco-fetch" type="button" disabled>Download & open MS MARCO index (~3.35 GB)</button>
-<button id="marco-cancel-download" type="button" data-download-control disabled>Cancel download</button>
-<progress id="marco-progress" max="100" value="0" hidden aria-label="MS MARCO download progress"></progress>
-<p>The download is stored privately in this browser. On later visits, use Reopen saved prebuilt index.</p>
-<label for="marco-db-file">Native-built MS MARCO database</label>
-<input id="marco-db-file" type="file" accept=".duckdb">
-<button id="marco-copy" type="button" disabled>Copy & open prebuilt index</button>
-<button id="marco-reopen" type="button" disabled>Reopen saved prebuilt index</button>
-<label for="marco-source">Search database</label>
-<select id="marco-source"><option value="browser">Built in browser</option><option value="prebuilt">Prebuilt native index</option></select>
 <label for="marco-query">Search MS MARCO passages</label>
 <input id="marco-query" type="search" placeholder="Search" required maxlength="500">
-<button disabled>Search MS MARCO</button>
+<button id="marco-search" disabled>Search</button>
 </form>
-<p id="marco-status" role="status">No benchmark has run in this session. Leave the local LLM unloaded when measuring retrieval.</p>
-<button id="marco-download" disabled>Download measurements</button>
-<details><summary>Session measurements</summary><pre id="marco-metrics">[]</pre></details>
-<ol id="marco-results"></ol>
-</section>
-<h2>OPFS experiments</h2>
-<button id="reload" disabled>Reload page</button>
-<button id="orders" disabled>Load orders & cache monthly totals</button>
-<button id="local-orders" disabled>Query saved orders (local only)</button>
-<button id="parquet" disabled>Download transactions.parquet</button>
-<button id="export" disabled>Download analytics.duckdb</button>
-<button id="close" disabled>Checkpoint & close</button>
-<button id="reset" disabled>Reset all data</button>
-<h2>Results</h2><pre id="output"></pre>
+<p id="marco-status" role="status">Download or reopen the index to start searching.</p>
+<ol id="marco-results" aria-label="Search results"></ol>
+</main>
 <script type="module" src="/src/main.js"></script>
 </body></html>
