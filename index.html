@@ -27,6 +27,38 @@
 </article>
 <ol id="fts-results"></ol>
 </section>
+<section aria-labelledby="marco-heading">
+<h2 id="marco-heading">MS MARCO scaling experiment</h2>
+<p>Select a local passage collection.tsv. The file is read in batches in your browser and is not uploaded. Start at 10,000 passages, then increase the size.</p>
+<label for="marco-file">MS MARCO passage collection</label>
+<input id="marco-file" type="file" accept=".tsv">
+<label for="marco-size">First N passages (deterministic prefix, not a random sample)</label>
+<select id="marco-size">
+<option value="10000">10,000</option><option value="100000">100,000</option>
+<option value="1000000">1,000,000</option><option value="all">Full corpus (experimental)</option>
+</select>
+<button id="marco-import" disabled>Import MS MARCO & build index</button>
+<form id="marco-form">
+<h3>Use an index built outside the browser</h3>
+<button id="marco-fetch" type="button" disabled>Download & open MS MARCO index (~3.35 GB)</button>
+<button id="marco-cancel-download" type="button" data-download-control disabled>Cancel download</button>
+<progress id="marco-progress" max="100" value="0" hidden aria-label="MS MARCO download progress"></progress>
+<p>The download is stored privately in this browser. On later visits, use Reopen saved prebuilt index.</p>
+<label for="marco-db-file">Native-built MS MARCO database</label>
+<input id="marco-db-file" type="file" accept=".duckdb">
+<button id="marco-copy" type="button" disabled>Copy & open prebuilt index</button>
+<button id="marco-reopen" type="button" disabled>Reopen saved prebuilt index</button>
+<label for="marco-source">Search database</label>
+<select id="marco-source"><option value="browser">Built in browser</option><option value="prebuilt">Prebuilt native index</option></select>
+<label for="marco-query">Search MS MARCO passages</label>
+<input id="marco-query" type="search" placeholder="Search" required maxlength="500">
+<button disabled>Search MS MARCO</button>
+</form>
+<p id="marco-status" role="status">No benchmark has run in this session. Leave the local LLM unloaded when measuring retrieval.</p>
+<button id="marco-download" disabled>Download measurements</button>
+<details><summary>Session measurements</summary><pre id="marco-metrics">[]</pre></details>
+<ol id="marco-results"></ol>
+</section>
 <h2>OPFS experiments</h2>
 <button id="reload" disabled>Reload page</button>
 <button id="orders" disabled>Load orders & cache monthly totals</button>

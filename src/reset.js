@@ -9,6 +9,7 @@ export async function deleteDemoFiles(root) {
     'analytics.duckdb.wal.checkpoint',
     'analytics.duckdb.wal.recovery',
     'analytics.duckdb',
+    'msmarco-prebuilt.duckdb',
   ]) await remove(root, name);
   for (const [folder, name] of [
     ['cache', 'monthly_totals.parquet'],

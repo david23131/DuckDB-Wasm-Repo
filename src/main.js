@@ -1,12 +1,13 @@
 import * as duckdb from '@duckdb/duckdb-wasm';
 import './style.css';
 import { setupNFCorpus } from './nfcorpus.js';
+import { setupMSMarco } from './msmarco.js';
 import { setupLLM } from './llm-controller.js';
 import { deleteDemoFiles } from './reset.js';
 
 const status = document.querySelector('#status');
 const output = document.querySelector('#output');
-const buttons = [...document.querySelectorAll('button:not([data-llm-control])')];
+const buttons = [...document.querySelectorAll('button:not([data-llm-control]):not([data-download-control])')];
 const show = (label, result) => {
   output.textContent = `${label}\n${JSON.stringify(result.toArray().map(row => row.toJSON()),
     (_, value) => typeof value === 'bigint' ? value.toString() : value, 2)}`;
@@ -15,6 +16,7 @@ let db;
 let conn;
 let closed = false;
 let busy = false;
+let marco;
 
 async function download(path, name) {
   let directory = await navigator.storage.getDirectory();
@@ -95,6 +97,7 @@ document.querySelector('#export').onclick = () => run(async () => {
   status.textContent = 'Database download requested.';
 });
 document.querySelector('#close').onclick = () => run(async () => {
+  await marco?.close();
   await conn.query('CHECKPOINT');
   await conn.close();
   await db.terminate();
@@ -107,6 +110,7 @@ document.querySelector('#reset').onclick = () => {
   if (!window.confirm('Delete all tables and indexes in this demo, plus its cached/exported Parquet files in browser storage? Downloaded copies are unaffected. Close other demo tabs first.')) return;
   return run(async () => {
     status.textContent = 'Closing the database and deleting saved demo data…';
+    await marco?.close();
     if (!closed) {
       await conn.query('CHECKPOINT');
       await conn.close();
@@ -144,6 +148,7 @@ async function main() {
   });
   conn = await db.connect();
   setupNFCorpus(db, conn, run, llm);
+  marco = setupMSMarco(db, conn, run);
   await conn.query(`CREATE TABLE IF NOT EXISTS transactions (
     id BIGINT, ts TIMESTAMP, merchant VARCHAR, category VARCHAR, amount DECIMAL(10, 2)
   )`);

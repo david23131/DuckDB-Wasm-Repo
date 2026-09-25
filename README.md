@@ -196,3 +196,67 @@ Each visitor builds their own FTS index in their browser. Storage on the publish
 Click **Reset all data** and confirm to close DuckDB, delete `analytics.duckdb` and its WAL/helper files, and remove the demo's OPFS Parquet cache and export. All tables and FTS indexes in that database are removed. The button also works after **Checkpoint & close**. Close other tabs running the demo before resetting.
 
 The page reloads after deletion. Startup creates a fresh `transactions` table with one sample row, as on a first visit. NFCorpus and orders remain absent until imported again; searching before rebuilding displays the missing-index message. Downloaded files, repository data, and unrelated files on the same origin are unaffected. Localhost and the hosted site have separate storage, so reset each separately if needed.
+
+## MS MARCO scaling experiment
+
+Use the **MS MARCO scaling experiment** section to measure passage retrieval at increasing corpus sizes. Select a local MS MARCO passage `collection.tsv`, choose 10,000, 100,000, 1,000,000, or all passages, then click **Import MS MARCO & build index**. The browser reads batches of 2,000 records; the source file is not uploaded or included in the GitHub Pages build.
+
+The experiment uses a deterministic prefix of the file, not a random sample. Each import replaces only the `msmarco` table and its FTS index. NFCorpus and its LLM integration remain separate. The index is built over passage text using DuckDB FTS defaults. Each passage retains its original ID. Search uses bound query parameters and returns up to ten matches ranked by BM25.
+
+If the corpus is in cloud-backed storage on macOS, download it locally before selecting it. A visible file name and size do not guarantee that its contents are available; a `dataless` file may block on downloading when read.
+
+Suggested procedure:
+
+1. Start with 10,000 passages and leave the LLM unloaded. Record browser, machine RAM, and other active applications separately.
+2. Search for `what is a corporation`, then repeat the same query several times. The first run and later runs may differ due to caching.
+3. Download the session measurements before reloading. The JSON log is held in page memory; the table/index are persisted in OPFS.
+4. Reload and search without reimporting to check persistence.
+5. Repeat at 100,000 passages, then 1,000,000 if feasible. Attempt the full corpus only after smaller runs succeed.
+
+Measurements include source size, actual imported row count, engine version, import time, index time, checkpoint time, and query time. Query time includes statement preparation, execution, result transfer, and statement cleanup, but excludes DOM rendering. Storage usage/quota estimates apply to the whole origin, including other demo tables and cached models; they are not per-index sizes or peak memory measurements. Use Chrome Task Manager to observe memory separately. These are exploratory measurements, not retrieval-quality evaluation or controlled performance benchmarks.
+
+A partial import after an error is not a completed experiment. Reimport to retry. Batching bounds JavaScript input buffers but does not bound DuckDB-Wasm's memory use during index construction. Million-passage and full-corpus runs are experimental and have not been validated in a browser. A tab crash may lose the in-memory measurement log. **Reset all data** also deletes the MS MARCO table/index because they live in the shared demo database.
+
+Implementation: `src/msmarco-stream.js` handles streaming TSV parsing; `src/msmarco.js` handles import, indexing, results, and measurement download. Building in the browser requires a local `collection.tsv`; visitors can instead download the prebuilt index described below.
+
+## Build MS MARCO FTS outside the browser
+
+To separate indexing memory requirements from browser query requirements, build a native database and copy it into OPFS. The builder pins DuckDB 1.4.3 to match the engine reported by this browser demo. Install [uv](https://docs.astral.sh/uv/) or use a Python environment with `duckdb==1.4.3`.
+
+```sh
+uv run --with duckdb==1.4.3 python scripts/build-msmarco.py /path/to/collection.tsv artifacts/msmarco-prebuilt.duckdb
+```
+
+The script refuses to overwrite existing output, imports passages, builds the default FTS index, checkpoints, runs a sample search, and closes the database. A neighboring `.build.json` records row count, native timings, configuration, and completion/failure. Defaults are a 4 GB buffer memory limit, two threads, and up to 6 GB temporary spill space; the memory setting is not a hard cap on process memory. Reserve disk space for the database and spill files. Optional `--limit 10000` supports a smaller smoke test; `--memory` and `--threads` adjust native build settings. Generated artifacts and downloaded native extensions are ignored by Git.
+
+After the script reports `"status": "complete"`:
+
+1. Reload the browser lab after any previous out-of-memory failure.
+2. Under **Use an index built outside the browser**, choose `artifacts/msmarco-prebuilt.duckdb`.
+3. Click **Copy & open prebuilt index**. The file is streamed directly to OPFS, not uploaded or buffered whole in JavaScript memory.
+4. Wait for the passage count, then search. **Search database** switches to **Prebuilt native index** after a successful open.
+5. Download measurements. After reload, click **Reopen saved prebuilt index** to reuse the OPFS copy without selecting the source file again.
+
+The prebuilt database opens read-only in a separate DuckDB-Wasm worker. It must contain `main.msmarco(id, contents)` and the saved `fts_main_msmarco` index/macro. Opening validates the table and retrieval macro. FTS extension code is loaded in the browser; it is not bundled into the native database. The existing browser-built MS MARCO experiment remains available through the source selector. **Checkpoint & close** releases both workers; **Reset all data** deletes both database files.
+
+This moves index construction out of the browser; it does not guarantee full-corpus search will fit within browser memory. Record opening and query errors as experimental outcomes. Native build timings and browser query timings are different measurements and should be reported separately. The multi-GB database is not included in the GitHub Pages deployment.
+
+### Initial native full-corpus result
+
+A local DuckDB 1.4.3 run with the default builder settings completed on all **8,841,823 passages**: import took **42.4 s**, FTS construction **310.8 s**, and the single sample query `what is a corporation` **2.73 s**. The checkpointed database was **3,346,542,592 bytes**. These are one-run native observations, not browser timings or a controlled benchmark. Full-corpus browser querying of the prebuilt file remains to be verified.
+
+### Configure the public prebuilt-index download
+
+**Download & open MS MARCO index (~3.35 GB)** streams a hosted database directly into OPFS, reports progress, supports cancellation, checks the expected byte count, and opens the saved index. Failed or cancelled writes are aborted instead of committing a partial replacement. The size check detects incomplete transfers; it is not a cryptographic integrity check. The default download uses the public [MS MARCO DuckDB FTS dataset](https://huggingface.co/datasets/DavidzzzZZZ/msmarco-duckdb-fts), pinned to revision `d8b39bc9edc94a16fb77359243163ed80c609c84`. No account or local corpus file is required for visitors.
+
+The database must be hosted separately with HTTPS and CORS allowing requests from the demo origin. Use a direct file URL, not an HTML preview page. GitHub release assets must be smaller than 2 GiB, so the 3.35 GB file cannot be hosted as one release asset. A public Hugging Face dataset repository is one hosting option. The URL is public configuration and must not contain credentials.
+
+No configuration is needed to use the default download. To override it for local testing, create `.env.local`:
+
+```text
+VITE_MSMARCO_INDEX_URL=https://your-host.example/msmarco-prebuilt.duckdb
+```
+
+Restart Vite after changing it. For GitHub Pages, add the repository Actions variable **MSMARCO_INDEX_URL** under **Settings → Secrets and variables → Actions → Variables**, then rerun the deployment. The Pages workflow passes it to Vite at build time.
+
+The expected artifact size is currently 3,346,542,592 bytes. If publishing a different build, update `downloadBytes` in `src/msmarco.js` as well. Visitors need browser storage for the downloaded file; replacing an existing copy may temporarily require additional disk space. Downloads do not resume across reloads. After a completed download, use **Reopen saved prebuilt index** on later visits.

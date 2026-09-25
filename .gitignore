@@ -1,3 +1,5 @@
 node_modules/
 dist/
 public/data/*.jsonl
+artifacts/
+.env.local
