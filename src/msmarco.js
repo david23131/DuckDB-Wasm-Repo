@@ -1,7 +1,7 @@
 import { openPrebuilt, PREBUILT_NAME } from './prebuilt-msmarco.js';
 import { downloadPrebuilt } from './download-prebuilt.js';
 
-export function setupMSMarco() {
+export function setupMSMarco(run = task => task()) {
   const status = document.querySelector('#marco-status');
   const output = document.querySelector('#marco-results');
   const fetchButton = document.querySelector('#marco-fetch');
@@ -14,18 +14,19 @@ export function setupMSMarco() {
   const downloadBytes = 3346542592;
   let prebuilt;
   let busy = false;
+  let blocked = false;
   let downloadController;
   const supported = window.isSecureContext && navigator.storage?.getDirectory;
   function updateButtons() {
-    fetchButton.disabled = !supported || busy;
-    reopenButton.disabled = !supported || busy;
-    searchButton.disabled = !supported || busy || !prebuilt;
+    fetchButton.disabled = !supported || busy || blocked;
+    reopenButton.disabled = !supported || busy || blocked;
+    searchButton.disabled = !supported || busy || blocked || !prebuilt;
   }
   async function action(task) {
-    if (busy || !supported) return;
+    if (busy || blocked || !supported) return;
     busy = true;
     updateButtons();
-    try { await task(); }
+    try { await run(task); }
     catch (error) {
       status.textContent = error.name === 'NotFoundError'
         ? 'No saved index found. Download the index first.'
@@ -47,7 +48,7 @@ export function setupMSMarco() {
   }
   cancelDownload.onclick = () => downloadController?.abort();
   fetchButton.onclick = () => {
-    if (busy) return;
+    if (busy || blocked) return;
     if (!confirm('Download 3.35 GB into this browser’s storage? This replaces any saved MS MARCO index. Close other search tabs first.')) return;
     return action(async () => {
       await closePrebuilt();
@@ -131,4 +132,13 @@ export function setupMSMarco() {
   };
   if (!supported) status.textContent = 'This app needs a browser with file storage support, such as desktop Chrome, on HTTPS or localhost.';
   updateButtons();
+  return {
+    setBlocked(value) { blocked = value; updateButtons(); },
+    async close() {
+      await closePrebuilt();
+      output.replaceChildren();
+      status.textContent = 'Index closed. Reload to reopen it.';
+      updateButtons();
+    },
+  };
 }

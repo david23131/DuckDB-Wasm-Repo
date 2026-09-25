@@ -46,3 +46,18 @@ it('disables all actions on an unsupported browser', () => {
   setupMSMarco();
   for (const id of ['#marco-fetch', '#marco-reopen', '#marco-search']) expect(elements.get(id).disabled).toBe(true);
 });
+it('coordinates with lab actions and releases the saved index on close', async () => {
+  const close = vi.fn();
+  openPrebuilt.mockResolvedValue({ count: 8841823, close });
+  const run = vi.fn(task => task());
+  const controller = setupMSMarco(run);
+  controller.setBlocked(true);
+  await elements.get('#marco-reopen').onclick();
+  expect(openPrebuilt).not.toHaveBeenCalled();
+  controller.setBlocked(false);
+  await elements.get('#marco-reopen').onclick();
+  expect(run).toHaveBeenCalledOnce();
+  await controller.close();
+  expect(close).toHaveBeenCalledOnce();
+  expect(elements.get('#marco-search').disabled).toBe(true);
+});

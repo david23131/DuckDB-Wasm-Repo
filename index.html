@@ -1,25 +1,59 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MS MARCO Search</title></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DuckDB OPFS lab</title></head>
 <body>
-<main>
-<h1>MS MARCO Search</h1>
-<p>Search 8.8 million passages in your browser.</p>
-<section aria-labelledby="setup-heading">
-<h2 id="setup-heading">Open the search index</h2>
-<p>First visit? Download the index once (3.35 GB). It stays in this browser’s storage. On later visits, reopen the saved index.</p>
-<button id="marco-fetch" type="button" disabled>Download & open index (3.35 GB)</button>
-<button id="marco-reopen" type="button" disabled>Reopen saved index</button>
-<button id="marco-cancel-download" type="button" disabled hidden>Cancel download</button>
-<progress id="marco-progress" max="100" value="0" hidden aria-label="Index download progress"></progress>
+<h1>DuckDB + OPFS lab</h1>
+<p>Each page load inserts one transaction and checkpoints it. Reload to test persistence.</p>
+<p id="status" role="status">Opening database…</p>
+<section aria-labelledby="fts-heading">
+<h2 id="fts-heading">NFCorpus full-text search</h2>
+<p>Search 3,633 documents with DuckDB BM25. Import and indexing run in your browser.</p>
+<button id="fts-index" disabled>Load NFCorpus & build FTS index</button>
+<div id="llm-controls">
+<button id="llm-load" type="button" data-llm-control disabled>Load local LLM (~1.84 GB)</button>
+<button id="llm-stop" type="button" data-llm-control disabled>Stop generation</button>
+<progress id="llm-progress" max="100" hidden aria-label="Model download progress"></progress>
+<p id="llm-status" role="status">Checking WebGPU support…</p>
+</div>
+<form id="fts-form">
+<label for="fts-query">Search title and document text</label>
+<input id="fts-query" type="search" placeholder="Search" required maxlength="500">
+<button id="fts-search" disabled>Search NFCorpus</button>
+</form>
+<p id="fts-status" role="status">Build the index once, then search. Saved indexes can be reused after reload.</p>
+<article id="llm-answer-panel" aria-labelledby="llm-answer-heading">
+<h3 id="llm-answer-heading">Grounded answer</h3>
+<p id="llm-answer" aria-live="polite">BM25 search works without the model. Load the local LLM to add cited answers.</p>
+</article>
+<ol id="fts-results"></ol>
 </section>
+<section aria-labelledby="marco-heading">
+<h2 id="marco-heading">MS MARCO search</h2>
+<p>Search 8.8 million passages in your browser.</p>
+<div>
+<h3>Open the search index</h3>
+<p>First visit? Download the index once (3.35 GB). It stays in this browser’s storage. On later visits, reopen the saved index.</p>
+<button data-marco-control id="marco-fetch" type="button" disabled>Download & open index (3.35 GB)</button>
+<button data-marco-control id="marco-reopen" type="button" disabled>Reopen saved index</button>
+<button data-marco-control id="marco-cancel-download" type="button" disabled hidden>Cancel download</button>
+<progress id="marco-progress" max="100" value="0" hidden aria-label="Index download progress"></progress>
+</div>
 <form id="marco-form">
 <label for="marco-query">Search MS MARCO passages</label>
 <input id="marco-query" type="search" placeholder="Search" required maxlength="500">
-<button id="marco-search" disabled>Search</button>
+<button data-marco-control id="marco-search" disabled>Search</button>
 </form>
 <p id="marco-status" role="status">Download or reopen the index to start searching.</p>
 <ol id="marco-results" aria-label="Search results"></ol>
-</main>
+</section>
+<h2>OPFS experiments</h2>
+<button id="reload" disabled>Reload page</button>
+<button id="orders" disabled>Load orders & cache monthly totals</button>
+<button id="local-orders" disabled>Query saved orders (local only)</button>
+<button id="parquet" disabled>Download transactions.parquet</button>
+<button id="export" disabled>Download analytics.duckdb</button>
+<button id="close" disabled>Checkpoint & close</button>
+<button id="reset" disabled>Reset all data</button>
+<h2>Results</h2><pre id="output"></pre>
 <script type="module" src="/src/main.js"></script>
 </body></html>

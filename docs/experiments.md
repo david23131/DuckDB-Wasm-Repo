@@ -1,4 +1,4 @@
-> Historical notes for the earlier lab UI. These controls are no longer part of the public MS MARCO search app.
+> Historical MS MARCO scaling instructions below refer to controls removed from the current UI. NFCorpus, the local LLM, and OPFS tools remain available.
 
 # DuckDB-Wasm OPFS Lab
 
