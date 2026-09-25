@@ -9,12 +9,22 @@
 <h2 id="fts-heading">NFCorpus full-text search</h2>
 <p>Search 3,633 documents with DuckDB BM25. Import and indexing run in your browser.</p>
 <button id="fts-index" disabled>Load NFCorpus & build FTS index</button>
+<div id="llm-controls">
+<button id="llm-load" type="button" data-llm-control disabled>Load local LLM (~1.84 GB)</button>
+<button id="llm-stop" type="button" data-llm-control disabled>Stop generation</button>
+<progress id="llm-progress" max="100" hidden aria-label="Model download progress"></progress>
+<p id="llm-status" role="status">Checking WebGPU support…</p>
+</div>
 <form id="fts-form">
 <label for="fts-query">Search title and document text</label>
 <input id="fts-query" type="search" placeholder="Search" required maxlength="500">
 <button id="fts-search" disabled>Search NFCorpus</button>
 </form>
 <p id="fts-status" role="status">Build the index once, then search. Saved indexes can be reused after reload.</p>
+<article id="llm-answer-panel" aria-labelledby="llm-answer-heading">
+<h3 id="llm-answer-heading">Grounded answer</h3>
+<p id="llm-answer" aria-live="polite">BM25 search works without the model. Load the local LLM to add cited answers.</p>
+</article>
 <ol id="fts-results"></ol>
 </section>
 <h2>OPFS experiments</h2>

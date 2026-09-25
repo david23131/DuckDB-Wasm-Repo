@@ -169,6 +169,16 @@ In the Chrome walkthrough, all 3,633 documents were indexed successfully. Search
 
 Internet access is still needed for DuckDB runtime/extension downloads. A successful native SQL check or Vite build does not verify that the browser can download and load its matching Wasm extension. Extension errors appear in the FTS status message. Retrieval evaluation against NFCorpus relevance judgments is outside this demo.
 
+## Local LLM answers (browser RAG)
+
+After building the NFCorpus index, the page can generate a cited answer locally from the BM25 results. This is an optional second stage: DuckDB still performs retrieval, and the original ranked result list remains visible.
+
+Click **Load local LLM (~1.84 GB)** to download the quantized [MiniCPM5-2B ONNX model](https://huggingface.co/Mike0021/MiniCPM5-2B-ONNX). The model runs in a Web Worker through [Transformers.js](https://huggingface.co/docs/transformers.js) with WebGPU and `q4f16` weights. The first download is large and requires a desktop browser whose WebGPU adapter exposes `shader-f16`; Chrome with a supported GPU is the tested target. The model is cached by the browser for later visits, subject to normal browser cache eviction and storage quotas.
+
+When the model is ready, submit an NFCorpus search as usual. The application passes the highest-ranked retrieved documents (within a fixed prompt budget) to the model and streams a grounded answer. Factual claims should cite document IDs such as `[MED-14]`; citation links jump to the corresponding result. Document text is treated as quoted evidence, not instructions, and answer rendering uses text nodes rather than HTML. If WebGPU is unavailable, the full BM25 search remains usable without downloading the model.
+
+The model runs entirely on the device. No API key, inference server, or document upload is used. **Reset all data** removes the DuckDB database and demo Parquet files but does not intentionally remove the model from the browser cache. The model and its base model are Apache-2.0 licensed; review the model card before redistributing weights.
+
 ## Publish on GitHub Pages
 
 The workflow in `.github/workflows/pages.yml` builds and deploys the demo on pushes to `main`, or when triggered manually from Actions.
