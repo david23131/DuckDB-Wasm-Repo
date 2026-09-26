@@ -5,6 +5,11 @@ Cite every factual sentence with one or more document IDs in square brackets, fo
 Use only document IDs that appear in the supplied evidence. Do not invent citations or use outside knowledge.
 Return only the answer. Do not reveal internal reasoning.`;
 
+// MiniCPM's thinking mode can spend the entire generation budget before it
+// reaches the user-facing answer. RAG responses should use its direct-answer
+// template instead; stripThinking remains a defensive output filter.
+export const CHAT_TEMPLATE_OPTIONS = Object.freeze({ enable_thinking: false });
+
 function serializableDocument(document) {
   return {
     id: String(document.id),
@@ -64,10 +69,32 @@ export async function fitDocumentsToTokenBudget(
 
 export function stripThinking(text) {
   const value = String(text ?? '');
-  const close = value.lastIndexOf('</think>');
-  if (close !== -1) return value.slice(close + '</think>'.length).trimStart();
-  if (value.includes('<think>') || /^\s*<think?$/i.test(value)) return '';
-  return value.trimStart();
+  // A prompt may already contain the opening tag. Discard that initial
+  // reasoning when only its closing tag appears in the generated text.
+  const open = value.search(/<think>/i);
+  const close = value.search(/<\/think>/i);
+  const start = close !== -1 && (open === -1 || close < open)
+    ? close + '</think>'.length
+    : 0;
+  const visible = value.slice(start)
+    .replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '')
+    .trimStart();
+
+  // Hold back split markers during streaming, including on the final chunk
+  // if generation stops midway through a tag.
+  for (const marker of ['<think>', '</think>']) {
+    const maxPrefixLength = Math.min(marker.length - 1, visible.length);
+    for (let length = maxPrefixLength; length > 0; length -= 1) {
+      if (marker.startsWith(visible.slice(-length).toLowerCase())) {
+        return visible.slice(0, -length);
+      }
+    }
+  }
+  return visible;
+}
+
+export function streamedAnswer(text) {
+  return stripThinking(text);
 }
 
 export function extractCitations(text, allowedIds) {
