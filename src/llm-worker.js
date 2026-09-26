@@ -3,7 +3,13 @@ import {
   TextStreamer,
   pipeline,
 } from '@huggingface/transformers';
-import { buildMessages, fitDocumentsToTokenBudget, stripThinking } from './rag.js';
+import {
+  CHAT_TEMPLATE_OPTIONS,
+  buildMessages,
+  fitDocumentsToTokenBudget,
+  streamedAnswer,
+  stripThinking,
+} from './rag.js';
 
 const MODEL_ID = 'Mike0021/MiniCPM5-2B-ONNX';
 const MODEL_REVISION = '04a6c49fcba3a65a0351c92644c3a7e9d4343059';
@@ -13,6 +19,7 @@ let generator;
 let loading;
 let activeGeneration;
 let generationQueue = Promise.resolve();
+const cancelledRequestIds = new Set();
 
 function report(type, details = {}) {
   self.postMessage({ type, ...details });
@@ -45,7 +52,7 @@ async function countTokens(messages) {
   const prompt = generator.tokenizer.apply_chat_template(messages, {
     tokenize: false,
     add_generation_prompt: true,
-    enable_thinking: true,
+    ...CHAT_TEMPLATE_OPTIONS,
   });
   return generator.tokenizer.encode(prompt).length;
 }
@@ -57,37 +64,51 @@ function generatedText(output, streamed) {
 }
 
 async function generate({ requestId, question, documents }) {
-  await loadModel();
-  const fitted = await fitDocumentsToTokenBudget(
-    question,
-    documents,
-    countTokens,
-    MAX_INPUT_TOKENS,
-  );
-  if (!fitted.length) throw new Error('The retrieved documents do not fit in the model context window.');
-
-  const messages = buildMessages(question, fitted);
+  if (cancelledRequestIds.delete(requestId)) {
+    report('cancelled', { requestId });
+    return;
+  }
   const stoppingCriteria = new InterruptableStoppingCriteria();
   const state = { requestId, stoppingCriteria, cancelled: false };
   activeGeneration = state;
-  let streamed = '';
-  let visibleLength = 0;
-  const streamer = new TextStreamer(generator.tokenizer, {
-    skip_prompt: true,
-    skip_special_tokens: false,
-    callback_function(text) {
-      streamed += text;
-      // MiniCPM may prefill the thinking block in the prompt, so the stream
-      // can begin with raw reasoning and only emit </think> later.
-      const visible = streamed.includes('</think>') ? stripThinking(streamed) : '';
-      if (visible.length > visibleLength) {
-        report('answer-delta', { requestId, text: visible.slice(visibleLength) });
-        visibleLength = visible.length;
-      }
-    },
-  });
 
   try {
+    await loadModel();
+    const fitted = await fitDocumentsToTokenBudget(
+      question,
+      documents,
+      countTokens,
+      MAX_INPUT_TOKENS,
+    );
+    if (state.cancelled) {
+      report('cancelled', { requestId });
+      return;
+    }
+    if (!fitted.length) throw new Error('The retrieved documents do not fit in the model context window.');
+
+    report('context', {
+      requestId,
+      documentIds: fitted.map(document => document.id),
+    });
+    const messages = buildMessages(question, fitted);
+    let streamed = '';
+    let visibleLength = 0;
+    const streamer = new TextStreamer(generator.tokenizer, {
+      skip_prompt: true,
+      // MiniCPM's <think> tags are ordinary added tokens, so this preserves
+      // reasoning boundaries while omitting EOS/chat control tokens.
+      skip_special_tokens: true,
+      callback_function(text) {
+        if (state.cancelled) return;
+        streamed += text;
+        const visible = streamedAnswer(streamed);
+        if (visible.length > visibleLength) {
+          report('answer-delta', { requestId, text: visible.slice(visibleLength) });
+          visibleLength = visible.length;
+        }
+      },
+    });
+
     const output = await generator(messages, {
       max_new_tokens: 512,
       do_sample: true,
@@ -97,13 +118,14 @@ async function generate({ requestId, question, documents }) {
       repetition_penalty: 1.0,
       streamer,
       stopping_criteria: [stoppingCriteria],
-      tokenizer_encode_kwargs: { enable_thinking: true },
+      tokenizer_encode_kwargs: CHAT_TEMPLATE_OPTIONS,
     });
     if (state.cancelled) {
       report('cancelled', { requestId });
       return;
     }
     const answer = stripThinking(generatedText(output, streamed));
+    if (!answer.trim()) throw new Error('The model stopped before producing an answer. Please retry the search.');
     report('complete', {
       requestId,
       answer,
@@ -113,6 +135,7 @@ async function generate({ requestId, question, documents }) {
     if (state.cancelled) report('cancelled', { requestId });
     else report('error', { operation: 'generate', requestId, message: error.message });
   } finally {
+    cancelledRequestIds.delete(requestId);
     if (activeGeneration === state) activeGeneration = undefined;
   }
 }
@@ -124,6 +147,7 @@ self.onmessage = event => {
     return;
   }
   if (message.type === 'cancel') {
+    cancelledRequestIds.add(message.requestId);
     if (activeGeneration?.requestId === message.requestId) {
       activeGeneration.cancelled = true;
       activeGeneration.stoppingCriteria.interrupt();

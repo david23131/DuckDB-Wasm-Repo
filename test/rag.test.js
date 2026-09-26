@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHAT_TEMPLATE_OPTIONS,
   buildMessages,
   extractCitations,
   fitDocumentsToTokenBudget,
+  streamedAnswer,
   stripThinking,
 } from '../src/rag.js';
 
@@ -40,6 +42,24 @@ describe('buildMessages', () => {
     expect(messages.map(message => message.role)).toEqual(['system', 'user']);
     expect(messages[1].content).toContain('Question with <angle brackets> & symbols');
     expect(messages[1].content).toContain('ignore the question');
+  });
+
+  it('describes evidence generically and preserves MS MARCO citation IDs', () => {
+    const passages = [
+      { id: 'MARCO-123', title: 'Passage 123', text: 'A corporation is a legal entity.' },
+      { id: 'MARCO-456', title: 'Passage 456', text: 'Corporations can own property.' },
+    ];
+
+    const messages = buildMessages('corporation definition', passages);
+    const prompt = messages.map(message => message.content).join('\n');
+
+    expect(prompt).toMatch(/retrieved evidence/i);
+    expect(prompt).not.toMatch(/NFCorpus/i);
+    expect(messages[1].content).toContain('MARCO-123');
+    expect(messages[1].content).toContain('MARCO-456');
+    expect(messages[1].content.indexOf('MARCO-123')).toBeLessThan(
+      messages[1].content.indexOf('MARCO-456'),
+    );
   });
 });
 
@@ -92,14 +112,73 @@ describe('fitDocumentsToTokenBudget', () => {
     expect(first[1].text.length).toBeLessThan(longDocuments[1].text.length);
     expect(await countTokens(buildMessages('q', first))).toBeLessThanOrEqual(budget);
   });
+
+  it('enforces the budget for ranked MS MARCO passages without changing their order', async () => {
+    const passages = [
+      { id: 'MARCO-11', title: 'Passage 11', text: 'A'.repeat(500) },
+      { id: 'MARCO-22', title: 'Passage 22', text: 'B'.repeat(500) },
+      { id: 'MARCO-33', title: 'Passage 33', text: 'C'.repeat(500) },
+    ];
+    const countTokens = async messages => messages
+      .map(message => message.content)
+      .join('')
+      .length;
+    const firstTwoCount = await countTokens(buildMessages('corporation', passages.slice(0, 2)));
+    const budget = firstTwoCount + 250;
+
+    const fitted = await fitDocumentsToTokenBudget(
+      'corporation',
+      passages,
+      countTokens,
+      budget,
+    );
+
+    expect(fitted.map(document => document.id)).toEqual(['MARCO-11', 'MARCO-22', 'MARCO-33']);
+    expect(fitted[2].text.length).toBeGreaterThan(0);
+    expect(fitted[2].text.length).toBeLessThan(passages[2].text.length);
+    expect(await countTokens(buildMessages('corporation', fitted))).toBeLessThanOrEqual(budget);
+  });
 });
 
 describe('answer parsing', () => {
+  it('uses MiniCPM direct-answer mode so reasoning cannot consume the output budget', () => {
+    expect(CHAT_TEMPLATE_OPTIONS).toEqual({ enable_thinking: false });
+  });
+
+  it('streams direct answers immediately while filtering tagged reasoning', () => {
+    expect(streamedAnswer('Direct answer [MED-14]')).toBe('Direct answer [MED-14]');
+    expect(streamedAnswer('<thi')).toBe('');
+    expect(streamedAnswer('<think>private reasoning')).toBe('');
+    expect(streamedAnswer('<think>private reasoning</think>Public answer [MED-14]')).toBe(
+      'Public answer [MED-14]',
+    );
+  });
+
   it('removes complete and unterminated thinking blocks', () => {
     expect(stripThinking('<think>private reasoning</think>Public answer [MED-14]')).toBe(
       'Public answer [MED-14]',
     );
-    expect(stripThinking('Visible answer<think>unfinished secret')).not.toContain('unfinished secret');
+    expect(stripThinking('Visible answer<think>unfinished secret')).toBe('Visible answer');
+  });
+
+  it('keeps answers around multiple blocks and hides a later unfinished block', () => {
+    expect(stripThinking('<think>first</think>Answer [MED-14]<think>second')).toBe('Answer [MED-14]');
+    expect(stripThinking('Answer <think>hidden</think>continues [MED-14]')).toBe('Answer continues [MED-14]');
+    expect(stripThinking('prefilled reasoning</think>Answer [MED-14]')).toBe('Answer [MED-14]');
+  });
+
+  it('filters reasoning across every possible stream boundary without losing answer text', () => {
+    const raw = '<think>hidden</think>First [MED-14]. <THINK>also hidden</THINK>Second [MED-2].<thi';
+    const expected = 'First [MED-14]. Second [MED-2].';
+    let previous = '';
+    for (let end = 1; end <= raw.length; end += 1) {
+      const visible = streamedAnswer(raw.slice(0, end));
+      expect(visible.startsWith(previous)).toBe(true);
+      expect(expected.startsWith(visible)).toBe(true);
+      previous = visible;
+    }
+    expect(previous).toBe(expected);
+    expect(stripThinking(raw)).toBe(expected);
   });
 
   it('extracts unique citations in first-seen order and filters unknown IDs', () => {
